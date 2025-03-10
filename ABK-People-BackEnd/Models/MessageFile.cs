@@ -14,6 +14,6 @@ namespace ABK_People_BackEnd.Models
         // Foreign Key
         [ForeignKey("Message")]
         public int MessageId { get; set; }
-        public Message Message { get; set; }
+        public Message? Message { get; set; }
     }
 }
