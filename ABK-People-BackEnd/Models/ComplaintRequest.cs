@@ -5,6 +5,7 @@
         public Status RequestStatus { get; set; }
         public ComplaintType TypeOfComplaint { get; set; }
 
+        
 
         // Enums
         public enum Status

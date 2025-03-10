@@ -17,10 +17,11 @@ namespace ABK_People_BackEnd.Models
 
         [ForeignKey("User")]
         public string UserId { get; set; }
-        public User User { get; set; }
+        public User? User { get; set; }
 
         [ForeignKey("Request")]
         public int RequestId { get; set; }
+        public Request? Request { get; set; }
 
     }
 }
