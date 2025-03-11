@@ -142,6 +142,77 @@ namespace ABK_People_BackEnd.Controllers
             return Ok(employeeDTOs);
         }
 
+        [Authorize(Roles = "Admin")]
+        [HttpGet("employee/{employeeId}")]
+        public async Task<IActionResult> GetFullEmployeeDetails(string employeeId)
+        {
+            var adminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(adminId))
+            {
+                return Unauthorized("Invalid token: Admin ID not found.");
+            }
+
+            var employee = await _context.Users
+                .OfType<Employee>()
+                .Include(e => e.Requests)
+                    .ThenInclude(r => r.Messages)
+                        .ThenInclude(m => m.Files)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(e => e.Id == employeeId);
+
+            if (employee == null)
+            {
+                return NotFound($"Employee with ID {employeeId} not found.");
+            }
+
+            var employeeDTO = new EmployeeResponseDTO
+            {
+                Id = employee.Id,
+                FirstName = employee.FirstName,
+                MiddleName = employee.MiddleName,
+                LastName = employee.LastName,
+                Email = employee.Email,
+                ProfilePicture = employee.ProfilePicture,
+                Role = employee.Role,
+                Position = employee.Position,
+                VacationDays = employee.VacationDays,
+                SickDays = employee.SickDays,
+                Department = employee.Department,
+                Requests = employee.Requests?.Select(r => new RequestResponseDTO
+                {
+                    RequestId = r.RequestId,
+                    IsClicked = r.IsClicked,
+                    TypeOfRequest = r.TypeOfRequest,
+                    CreatedAt = r.CreatedAt,
+                    EmployeeId = r.EmployeeId,
+                    StartDate = r is VacationRequest vr ? vr.StartDate : null,
+                    EndDate = r is VacationRequest vr2 ? vr2.EndDate : null,
+                    RequestStatus = r is VacationRequest vr3 ? vr3.RequestStatus : null,
+                    TypeOfVacation = r is VacationRequest vr4 ? vr4.TypeOfVacation : null,
+                    ComplaintStatus = r is ComplaintRequest cr ? cr.RequestStatus : null,
+                    TypeOfComplaint = r is ComplaintRequest cr2 ? cr2.TypeOfComplaint : null,
+                    Messages = r.Messages?.Select(m => new MessageResponseDTO
+                    {
+                        MessageId = m.MessageId,
+                        CreatedAt = m.CreatedAt,
+                        DescriptionBody = m.DescriptionBody,
+                        UserId = m.UserId,
+                        RequestId = m.RequestId,
+                        Files = m.Files?.Select(f => new MessageFileResponseDTO
+                        {
+                            MessageFileId = f.MessageFileId,
+                            FileName = f.FileName,
+                            FilePath = f.FilePath,
+                            FileType = f.FileType,
+                            MessageId = f.MessageId
+                        }).ToList() ?? new List<MessageFileResponseDTO>()
+                    }).ToList() ?? new List<MessageResponseDTO>()
+                }).ToList() ?? new List<RequestResponseDTO>()
+            };
+
+            return Ok(employeeDTO);
+        }
+
         #endregion
     }
 }
