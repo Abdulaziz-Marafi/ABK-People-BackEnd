@@ -1,10 +1,12 @@
 ﻿using System.Security.Claims;
 using ABK_People_BackEnd.Data;
 using ABK_People_BackEnd.DTOs;
+using ABK_People_BackEnd.DTOs.ResponseDTOs;
 using ABK_People_BackEnd.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace ABK_People_BackEnd.Controllers
 {
@@ -15,7 +17,7 @@ namespace ABK_People_BackEnd.Controllers
 
     public class RequestsController : ControllerBase
     {
-        // Services
+        #region Services
         private readonly ApplicationDbContext _context;
         private readonly IWebHostEnvironment _hostenv;
 
@@ -24,7 +26,9 @@ namespace ABK_People_BackEnd.Controllers
             _context = context;
             _hostenv = hostenv;
         }
+        #endregion
 
+        #region Employee-Requests
         [Authorize(Roles = "Employee")]
         [HttpPost("vacation")]
         public async Task<IActionResult> CreateVacationRequest([FromForm] CreateVacationDTO vacationDTO)
@@ -107,14 +111,250 @@ namespace ABK_People_BackEnd.Controllers
                 {
                     message.Files = await SaveFiles(complaintDTO.Message.Files, message);
                 }
-                _context.Requests.Add(complaintRequest);
-                await _context.SaveChangesAsync();
-
-                return Ok(new { RequestId = complaintRequest.RequestId });
+                
             }
+            _context.Requests.Add(complaintRequest);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { RequestId = complaintRequest.RequestId });
+        }
+
+        [Authorize(Roles= "Employee")]
+        [HttpPost("add-message")]
+        public async Task<IActionResult> AddMessageToRequest([FromForm] AddMessageDTO messageDTO)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized("Invalid token: User ID not found.");
+            }
+
+            var request = await _context.Requests
+                .Include(r => r.Messages)
+                .FirstOrDefaultAsync(r => r.RequestId == messageDTO.RequestId);
+
+            if (request == null)
+            {
+                return NotFound("Request not found.");
+            }
+
+            if (request.EmployeeId != userId)
+            {
+                return Forbid("You can only add messages to your own requests.");
+            }
+
+            // Check if adding a message is allowed based on status
+            if (request is VacationRequest vacationRequest &&
+                vacationRequest.RequestStatus != VacationRequest.Status.RequestingDocuments)
+            {
+                return BadRequest("Cannot add message unless more information is requested.");
+            }
+            else if (request is ComplaintRequest complaintRequest &&
+                complaintRequest.RequestStatus != ComplaintRequest.Status.ReturedForResponse)
+            {
+                return BadRequest("Cannot add message unless response is requested.");
+            }
+
+            var message = new Message
+            {
+                DescriptionBody = messageDTO.DescriptionBody,
+                CreatedAt = DateTime.UtcNow,
+                UserId = userId
+            };
+
+            if (messageDTO.Files?.Any() == true)
+            {
+                message.Files = await SaveFiles(messageDTO.Files, message);
+            }
+
+            request.Messages ??= new List<Message>();
+            request.Messages.Add(message);
+
+            // Update request status to Ongoing
+            if (request is VacationRequest vr)
+            {
+                vr.RequestStatus = VacationRequest.Status.Ongoing;
+            }
+            else if (request is ComplaintRequest cr)
+            {
+                cr.RequestStatus = ComplaintRequest.Status.Ongoing;
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
+
+        [Authorize(Roles= "Employee")]
+        [HttpGet("my-requests")]
+        public async Task<IActionResult> GetMyRequests()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized("Invalid token: User ID not found.");
+            }
+
+            var requests = await _context.Requests
+                .Include(r => r.Messages)
+                    .ThenInclude(m => m.Files)
+                .Where(r => r.EmployeeId == userId)
+                .ToListAsync();
+
+            var requestDTOs = requests.Select(r => new RequestResponseDTO
+            {
+                RequestId = r.RequestId,
+                IsClicked = r.IsClicked,
+                TypeOfRequest = r.TypeOfRequest,
+                CreatedAt = r.CreatedAt,
+                EmployeeId = r.EmployeeId,
+                StartDate = r is VacationRequest vr ? vr.StartDate : null,
+                EndDate = r is VacationRequest vr2 ? vr2.EndDate : null,
+                RequestStatus = r is VacationRequest vr3 ? vr3.RequestStatus : null,
+                TypeOfVacation = r is VacationRequest vr4 ? vr4.TypeOfVacation : null,
+                ComplaintStatus = r is ComplaintRequest cr ? cr.RequestStatus : null,
+                TypeOfComplaint = r is ComplaintRequest cr2 ? cr2.TypeOfComplaint : null,
+                Messages = r.Messages?.Select(m => new MessageResponseDTO
+                {
+                    MessageId = m.MessageId,
+                    CreatedAt = m.CreatedAt,
+                    DescriptionBody = m.DescriptionBody,
+                    UserId = m.UserId,
+                    RequestId = m.RequestId,
+                    Files = m.Files?.Select(f => new MessageFileResponseDTO
+                    {
+                        MessageFileId = f.MessageFileId,
+                        FileName = f.FileName,
+                        FilePath = f.FilePath,
+                        FileType = f.FileType,
+                        MessageId = f.MessageId
+                    }).ToList() ?? new List<MessageFileResponseDTO>()
+                }).ToList() ?? new List<MessageResponseDTO>()
+            }).ToList();
+
+            return Ok(requestDTOs);
         }
 
 
+        #endregion
+
+        #region Admin-Requests
+
+        [Authorize(Roles = "Admin")]
+        [HttpPost("respond")]
+        public async Task<IActionResult> RespondToRequest([FromForm] AdminResponseDTO responseDTO)
+        {
+            var adminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(adminId))
+            {
+                return Unauthorized("Invalid token: Admin ID not found.");
+            }
+
+            var request = await _context.Requests
+                .Include(r => r.Messages)
+                .FirstOrDefaultAsync(r => r.RequestId == responseDTO.RequestId);
+
+            if (request == null)
+            {
+                return NotFound("Request not found.");
+            }
+
+            // Update status based on request type
+            if (request is VacationRequest vacationRequest)
+            {
+                if (!Enum.TryParse<VacationRequest.Status>(responseDTO.Status, true, out var status))
+                {
+                    return BadRequest("Invalid status for vacation request.");
+                }
+                vacationRequest.RequestStatus = status;
+            }
+            else if (request is ComplaintRequest complaintRequest)
+            {
+                if (!Enum.TryParse<ComplaintRequest.Status>(responseDTO.Status, true, out var status))
+                {
+                    return BadRequest("Invalid status for complaint request.");
+                }
+                complaintRequest.RequestStatus = status;
+            }
+            else
+            {
+                return BadRequest("Unknown request type.");
+            }
+
+            if (responseDTO.Message != null && (!string.IsNullOrEmpty(responseDTO.Message.DescriptionBody) || responseDTO.Message.Files?.Any() == true))
+            {
+                var message = new Message
+                {
+                    DescriptionBody = responseDTO.Message.DescriptionBody,
+                    CreatedAt = DateTime.UtcNow,
+                    UserId = adminId
+                };
+
+                request.Messages ??= new List<Message>();
+                request.Messages.Add(message);
+
+                if (responseDTO.Message.Files?.Any() == true)
+                {
+                    message.Files = await SaveFiles(responseDTO.Message.Files, message);
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
+
+        [Authorize(Roles = "Admin")]
+        [HttpGet("all-requests")]
+        public async Task<IActionResult> GetAllRequests()
+        {
+            var adminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(adminId))
+            {
+                return Unauthorized("Invalid token: Admin ID not found.");
+            }
+
+            var requests = await _context.Requests
+                .Include(r => r.Messages)
+                    .ThenInclude(m => m.Files)
+                .AsNoTracking() // No tracking since we’re only reading
+                .ToListAsync();
+
+            var requestDTOs = requests.Select(r => new RequestResponseDTO
+            {
+                RequestId = r.RequestId,
+                IsClicked = r.IsClicked,
+                TypeOfRequest = r.TypeOfRequest,
+                CreatedAt = r.CreatedAt,
+                EmployeeId = r.EmployeeId,
+                StartDate = r is VacationRequest vr ? vr.StartDate : null,
+                EndDate = r is VacationRequest vr2 ? vr2.EndDate : null,
+                RequestStatus = r is VacationRequest vr3 ? vr3.RequestStatus : null,
+                TypeOfVacation = r is VacationRequest vr4 ? vr4.TypeOfVacation : null,
+                ComplaintStatus = r is ComplaintRequest cr ? cr.RequestStatus : null,
+                TypeOfComplaint = r is ComplaintRequest cr2 ? cr2.TypeOfComplaint : null,
+                Messages = r.Messages?.Select(m => new MessageResponseDTO
+                {
+                    MessageId = m.MessageId,
+                    CreatedAt = m.CreatedAt,
+                    DescriptionBody = m.DescriptionBody,
+                    UserId = m.UserId,
+                    RequestId = m.RequestId,
+                    Files = m.Files?.Select(f => new MessageFileResponseDTO
+                    {
+                        MessageFileId = f.MessageFileId,
+                        FileName = f.FileName,
+                        FilePath = f.FilePath,
+                        FileType = f.FileType,
+                        MessageId = f.MessageId
+                    }).ToList() ?? new List<MessageFileResponseDTO>()
+                }).ToList() ?? new List<MessageResponseDTO>()
+            }).ToList();
+
+            return Ok(requestDTOs);
+        }
+
+        #endregion
+
+        #region Helper-Functions
         // Helper Functions
 
         // Helper Function used to save files to the server and return messagefiles object
@@ -148,5 +388,6 @@ namespace ABK_People_BackEnd.Controllers
             return messageFiles;
         }
 
+        #endregion
     }
 }

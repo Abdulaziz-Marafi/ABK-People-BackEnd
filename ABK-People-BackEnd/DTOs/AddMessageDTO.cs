@@ -2,10 +2,10 @@
 {
     public class AddMessageDTO
     {
-        public int requestId { get; set; }
-        public string? descriptionBody { get; set; }
+        public int RequestId { get; set; }
+        public string? DescriptionBody { get; set; }
 
         // List of files being sent
-        public List<IFormFile>? files { get; set; }
+        public List<IFormFile>? Files { get; set; }
     }
 }
