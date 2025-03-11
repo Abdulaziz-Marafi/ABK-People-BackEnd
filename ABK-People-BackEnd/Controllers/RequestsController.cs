@@ -234,37 +234,6 @@ namespace ABK_People_BackEnd.Controllers
             return Ok(requestDTOs);
         }
 
-        [Authorize(Roles ="Employee")]
-        [HttpGet("my-credit")]
-        public async Task<IActionResult> GetMyCredit()
-        {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized("Invalid token: User ID not found.");
-            }
-
-            var user = await _context.Users
-                .OfType<Employee>() // Filter to Employee type directly
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == userId);
-
-            if (user == null)
-            {
-                return NotFound("Employee not found.");
-            }
-
-            var creditDTO = new VacationCreditResponseDTO
-            {
-                VacationDays = user.VacationDays,
-                SickDays = user.SickDays,
-                IsVacation = user.IsVacation
-            };
-
-            return Ok(creditDTO);
-        }
-
-
         #endregion
 
         #region Admin-Requests
