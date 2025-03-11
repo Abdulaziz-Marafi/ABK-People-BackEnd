@@ -58,7 +58,7 @@ namespace ABK_People_BackEnd.Controllers
                     DescriptionBody = vacationDTO.Message.DescriptionBody,
                     CreatedAt = DateTime.UtcNow,
                     UserId = userId
-                    // Don’t set RequestId yet—let EF handle it via the relationship
+                    // let EF handle requestId it via the relationship
                 };
 
                 vacationRequest.Messages.Add(message); 
@@ -72,6 +72,46 @@ namespace ABK_People_BackEnd.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { RequestId = vacationRequest.RequestId });
+        }
+
+        [Authorize(Roles = "Employee")]
+        [HttpPost("complaint")]
+        public async Task<IActionResult> CreateComplaintRequest([FromForm] CreateComplaintDTO complaintDTO)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized("Invalid token: User ID not found.");
+            }
+            var complaintRequest = new ComplaintRequest
+            {
+                TypeOfComplaint = complaintDTO.TypeOfComplaint,
+                RequestStatus = ComplaintRequest.Status.Ongoing,
+                CreatedAt = DateTime.UtcNow,
+                EmployeeId = userId,
+                TypeOfRequest = ComplaintRequest.RequestType.Complaint
+            };
+            if (complaintDTO.Message != null && (!string.IsNullOrEmpty(complaintDTO.Message.DescriptionBody) || complaintDTO.Message.Files?.Any() == true))
+            {
+                complaintRequest.Messages = new List<Message>();
+                var message = new Message
+                {
+                    DescriptionBody = complaintDTO.Message.DescriptionBody,
+                    CreatedAt = DateTime.UtcNow,
+                    UserId = userId
+                };
+
+                complaintRequest.Messages.Add(message);
+
+                if (complaintDTO.Message.Files?.Any() == true)
+                {
+                    message.Files = await SaveFiles(complaintDTO.Message.Files, message);
+                }
+                _context.Requests.Add(complaintRequest);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { RequestId = complaintRequest.RequestId });
+            }
         }
 
 
