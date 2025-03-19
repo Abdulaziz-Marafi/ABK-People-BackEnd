@@ -4,7 +4,11 @@
     {
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
-        public Status RequestStatus { get; set; }
+        public Status VacationRequestStatus
+        {
+            get => (Status)RequestStatus.GetValueOrDefault();
+            set => RequestStatus = (int)value;
+        }
         public VacationType TypeOfVacation { get; set; }
 
 

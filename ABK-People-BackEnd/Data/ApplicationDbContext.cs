@@ -31,10 +31,18 @@ namespace ABK_People_BackEnd.Data
                 .HasValue<Admin>("Admin")
                 .HasValue<Employee>("Employee");
 
+            // Configure inheritance for Request using the RequestType enum
             builder.Entity<Request>()
-                .HasDiscriminator<string>("RequestType")
-                .HasValue<VacationRequest>("Vacation")
-                .HasValue<ComplaintRequest>("Complaint");
+                .HasDiscriminator(r => r.TypeOfRequest)
+                .HasValue<VacationRequest>(Request.RequestType.Vacation)
+                .HasValue<ComplaintRequest>(Request.RequestType.Complaint);
+
+            // Ignore the helper properties in VacationRequest and ComplaintRequest
+            builder.Entity<VacationRequest>()
+                .Ignore(vr => vr.VacationRequestStatus);
+
+            builder.Entity<ComplaintRequest>()
+                .Ignore(cr => cr.ComplaintRequestStatus);
 
             // Configure relationships to avoid cascade cycles
             builder.Entity<Message>()

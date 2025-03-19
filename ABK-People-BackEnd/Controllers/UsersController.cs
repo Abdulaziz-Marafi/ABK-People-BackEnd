@@ -187,9 +187,9 @@ namespace ABK_People_BackEnd.Controllers
                     EmployeeId = r.EmployeeId,
                     StartDate = r is VacationRequest vr ? vr.StartDate : null,
                     EndDate = r is VacationRequest vr2 ? vr2.EndDate : null,
-                    RequestStatus = r is VacationRequest vr3 ? vr3.RequestStatus : null,
+                    RequestStatus = r is VacationRequest vr3 ? (VacationRequest.Status?)vr3.VacationRequestStatus : null, // Use the helper property
                     TypeOfVacation = r is VacationRequest vr4 ? vr4.TypeOfVacation : null,
-                    ComplaintStatus = r is ComplaintRequest cr ? cr.RequestStatus : null,
+                    ComplaintStatus = r is ComplaintRequest cr ? (ComplaintRequest.Status?)cr.ComplaintRequestStatus : null, // Use the helper property
                     TypeOfComplaint = r is ComplaintRequest cr2 ? cr2.TypeOfComplaint : null,
                     Messages = r.Messages?.Select(m => new MessageResponseDTO
                     {

@@ -11,6 +11,8 @@ namespace ABK_People_BackEnd.Models
 
         public ICollection<Message>? Messages { get; set; }
 
+        public int? RequestStatus { get; set; }
+
 
 
         // Foreign Key

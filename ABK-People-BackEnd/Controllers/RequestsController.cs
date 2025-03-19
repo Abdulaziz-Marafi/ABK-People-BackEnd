@@ -45,7 +45,7 @@ namespace ABK_People_BackEnd.Controllers
                 StartDate = vacationDTO.StartDate,
                 EndDate = vacationDTO.EndDate,
                 TypeOfVacation = vacationDTO.TypeOfVacation,
-                RequestStatus = VacationRequest.Status.Ongoing,
+                VacationRequestStatus = VacationRequest.Status.Ongoing,
                 CreatedAt = DateTime.UtcNow,
                 EmployeeId = userId,
                 //TODO: It was not letting me access RequestType directly, so I had to use the subclas, not sure why.
@@ -90,7 +90,7 @@ namespace ABK_People_BackEnd.Controllers
             var complaintRequest = new ComplaintRequest
             {
                 TypeOfComplaint = complaintDTO.TypeOfComplaint,
-                RequestStatus = ComplaintRequest.Status.Ongoing,
+                ComplaintRequestStatus = ComplaintRequest.Status.Ongoing,
                 CreatedAt = DateTime.UtcNow,
                 EmployeeId = userId,
                 TypeOfRequest = ComplaintRequest.RequestType.Complaint
@@ -145,12 +145,12 @@ namespace ABK_People_BackEnd.Controllers
 
             // Check if adding a message is allowed based on status
             if (request is VacationRequest vacationRequest &&
-                vacationRequest.RequestStatus != VacationRequest.Status.RequestingDocuments)
+                vacationRequest.VacationRequestStatus != VacationRequest.Status.RequestingDocuments)
             {
                 return BadRequest("Cannot add message unless more information is requested.");
             }
             else if (request is ComplaintRequest complaintRequest &&
-                complaintRequest.RequestStatus != ComplaintRequest.Status.ReturedForResponse)
+                complaintRequest.ComplaintRequestStatus != ComplaintRequest.Status.ReturedForResponse)
             {
                 return BadRequest("Cannot add message unless response is requested.");
             }
@@ -173,11 +173,11 @@ namespace ABK_People_BackEnd.Controllers
             // Update request status to Ongoing
             if (request is VacationRequest vr)
             {
-                vr.RequestStatus = VacationRequest.Status.Ongoing;
+                vr.VacationRequestStatus = VacationRequest.Status.Ongoing;
             }
             else if (request is ComplaintRequest cr)
             {
-                cr.RequestStatus = ComplaintRequest.Status.Ongoing;
+                cr.ComplaintRequestStatus = ComplaintRequest.Status.Ongoing;
             }
 
             await _context.SaveChangesAsync();
@@ -209,9 +209,9 @@ namespace ABK_People_BackEnd.Controllers
                 EmployeeId = r.EmployeeId,
                 StartDate = r is VacationRequest vr ? vr.StartDate : null,
                 EndDate = r is VacationRequest vr2 ? vr2.EndDate : null,
-                RequestStatus = r is VacationRequest vr3 ? vr3.RequestStatus : null,
+                RequestStatus = r is VacationRequest vr3 ? (VacationRequest.Status?)vr3.VacationRequestStatus : null,
                 TypeOfVacation = r is VacationRequest vr4 ? vr4.TypeOfVacation : null,
-                ComplaintStatus = r is ComplaintRequest cr ? cr.RequestStatus : null,
+                ComplaintStatus = r is ComplaintRequest cr ? (ComplaintRequest.Status?)cr.ComplaintRequestStatus : null,
                 TypeOfComplaint = r is ComplaintRequest cr2 ? cr2.TypeOfComplaint : null,
                 Messages = r.Messages?.Select(m => new MessageResponseDTO
                 {
@@ -264,7 +264,7 @@ namespace ABK_People_BackEnd.Controllers
                 {
                     return BadRequest("Invalid status for vacation request.");
                 }
-                vacationRequest.RequestStatus = status;
+                vacationRequest.VacationRequestStatus = status;
             }
             else if (request is ComplaintRequest complaintRequest)
             {
@@ -272,7 +272,7 @@ namespace ABK_People_BackEnd.Controllers
                 {
                     return BadRequest("Invalid status for complaint request.");
                 }
-                complaintRequest.RequestStatus = status;
+                complaintRequest.ComplaintRequestStatus = status;
             }
             else
             {
@@ -326,9 +326,9 @@ namespace ABK_People_BackEnd.Controllers
                 EmployeeId = r.EmployeeId,
                 StartDate = r is VacationRequest vr ? vr.StartDate : null,
                 EndDate = r is VacationRequest vr2 ? vr2.EndDate : null,
-                RequestStatus = r is VacationRequest vr3 ? vr3.RequestStatus : null,
+                RequestStatus = r is VacationRequest vr3 ? (VacationRequest.Status?)vr3.VacationRequestStatus : null, // Use the helper property
                 TypeOfVacation = r is VacationRequest vr4 ? vr4.TypeOfVacation : null,
-                ComplaintStatus = r is ComplaintRequest cr ? cr.RequestStatus : null,
+                ComplaintStatus = r is ComplaintRequest cr ? (ComplaintRequest.Status?)cr.ComplaintRequestStatus : null, // Use the helper property
                 TypeOfComplaint = r is ComplaintRequest cr2 ? cr2.TypeOfComplaint : null,
                 Messages = r.Messages?.Select(m => new MessageResponseDTO
                 {

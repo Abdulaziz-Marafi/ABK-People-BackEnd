@@ -2,7 +2,11 @@
 {
     public class ComplaintRequest : Request
     {
-        public Status RequestStatus { get; set; }
+        public Status ComplaintRequestStatus
+        {
+            get => (Status)RequestStatus.GetValueOrDefault();
+            set => RequestStatus = (int)value;
+        }
         public ComplaintType TypeOfComplaint { get; set; }
 
         
